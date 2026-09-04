@@ -10,8 +10,11 @@ export function activeModel() {
   return process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 }
 
-export async function chatJson(system, user, { timeoutMs = 15000 } = {}) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function chatJson(system, user, { timeoutMs = 20000, maxAttempts = 3 } = {}) {
   if (!llmEnabled()) return null;
+  // Returns { text } on success, { retryable: true } on 429/5xx, null otherwise.
   const attempt = async () => {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), timeoutMs);
@@ -35,19 +38,24 @@ export async function chatJson(system, user, { timeoutMs = 15000 } = {}) {
           ],
         }),
       });
+      if (res.status === 429 || res.status >= 500) return { retryable: true };
       if (!res.ok) return null;
       const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content?.trim();
-      return text ? parseJson(text) : null;
+      return { text: data?.choices?.[0]?.message?.content?.trim() || null };
+    } catch {
+      return { retryable: true }; // timeout / network -> worth a retry
     } finally {
       clearTimeout(t);
     }
   };
-  try {
-    return (await attempt()) ?? (await attempt()); // one retry (TDD §10)
-  } catch {
-    try { return await attempt(); } catch { return null; }
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const r = await attempt();
+    if (r && 'text' in r) return r.text ? parseJson(r.text) : null;
+    if (!r?.retryable) return null;
+    if (i < maxAttempts - 1) await sleep(1500 * (i + 1)); // backoff on 429/5xx
   }
+  return null;
 }
 
 function parseJson(text) {

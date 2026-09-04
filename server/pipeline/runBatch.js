@@ -7,6 +7,7 @@ import { diagnose } from '../agents/diagnoser.js';
 import { decide } from '../agents/strategist.js';
 import { execute } from '../agents/executor.js';
 import { computeAndStoreReport } from '../report/report.js';
+import { resetLinkBudget } from '../razorpay/client.js';
 
 async function audit(client, runId, paymentId, agent, { input, output, confidence = null, reasoning, simulated = null }) {
   await client.query(
@@ -22,7 +23,15 @@ export async function runBatch(runId, { onEvent, stepDelayMs = 0 } = {}) {
   const { rows: payments } = await pool.query(
     `SELECT * FROM payments WHERE run_id = $1 ORDER BY payment_id`, [runId]
   );
+  // Make re-runs idempotent: clear any prior audit rows and reset payment
+  // result columns so a batch can be run again without duplicating the trail.
+  await pool.query(`DELETE FROM audit_log WHERE run_id=$1`, [runId]);
+  await pool.query(
+    `UPDATE payments SET root_cause=NULL, diagnosis_confidence=NULL, action=NULL,
+        status='pending', recovered_amount=0, simulated=NULL WHERE run_id=$1`, [runId]
+  );
   await pool.query(`UPDATE batch_runs SET status='running' WHERE run_id=$1`, [runId]);
+  resetLinkBudget();
   emit({ type: 'batch_start', runId, total: payments.length });
 
   let recovered = 0, recoveredCount = 0, escalated = 0, actionsTaken = 0;

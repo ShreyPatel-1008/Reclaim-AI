@@ -251,3 +251,5 @@ tbody tr { cursor: pointer; }
 .trail-out { font-size: 12px; background: var(--bg-2); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); }
 .trail-conf { font-size: 11px; color: var(--muted); }
 .trail-reason { font-size: 12.5px; color: var(--text); opacity: .88; line-height: 1.5; }
+
+.eval-note { margin-top: 6px; font-size: 11px; color: var(--dim); font-style: italic; line-height: 1.4; }

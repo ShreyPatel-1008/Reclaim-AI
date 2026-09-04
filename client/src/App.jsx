@@ -109,8 +109,18 @@ export default function App() {
     finally { setBusy(''); }
   }
 
-  const recRate = amountAttempted ? (metrics.recovered / amountAttempted) * 100 : 0;
-  const escRate = payments.length ? (metrics.escalated / payments.length) * 100 : 0;
+  // During the run, show the live SSE counters; once the batch completes, use
+  // the authoritative report so the final numbers are exact.
+  const liveRecRate = amountAttempted ? (metrics.recovered / amountAttempted) * 100 : 0;
+  const liveEscRate = payments.length ? (metrics.escalated / payments.length) * 100 : 0;
+  const v = {
+    recovered: report ? report.amount_recovered : metrics.recovered,
+    recoveredCount: report ? report.recovered_count : metrics.recoveredCount,
+    escalated: report ? report.escalated_count : metrics.escalated,
+    actions: report ? (report.recovered_count + report.failed_count + report.escalated_count + report.no_action_count) : metrics.actionsTaken,
+    recRate: report ? report.recovery_rate_pct : liveRecRate,
+    escRate: report ? report.escalation_rate_pct : liveEscRate,
+  };
 
   const causeBreakdown = useMemo(() => {
     const m = new Map();
@@ -156,11 +166,11 @@ export default function App() {
 
       <div className="kpis">
         <Kpi label="Amount attempted" value={fmtMoney(amountAttempted)} sub={`${payments.length} failed payments`} tone="risk" />
-        <Kpi label="Amount recovered" value={<Money value={metrics.recovered} />} sub={<><Num value={metrics.recoveredCount} /> recovered</>} tone="good" big />
-        <Kpi label="Recovery rate" value={fmtPct(recRate)} sub="of whole batch (honest)" tone="good" />
-        <Kpi label="Escalation rate" value={fmtPct(escRate)} sub={<><Num value={metrics.escalated} /> to human</>} tone="manual" />
-        <Kpi label="Diagnosis accuracy" value={evalResult?.accuracy_pct != null ? fmtPct(evalResult.accuracy_pct) : '—'} sub={evalResult ? `held-out n=${evalResult.sample_size}` : 'run eval'} tone="neutral" />
-        <Kpi label="Actions taken" value={<Num value={metrics.actionsTaken} />} sub="bounded interventions" tone="mute" />
+        <Kpi label="Amount recovered" value={<Money value={v.recovered} />} sub={<><Num value={v.recoveredCount} /> recovered</>} tone="good" big />
+        <Kpi label="Recovery rate" value={fmtPct(v.recRate)} sub="of whole batch (honest)" tone="good" />
+        <Kpi label="Escalation rate" value={fmtPct(v.escRate)} sub={<><Num value={v.escalated} /> to human</>} tone="manual" />
+        <Kpi label="Diagnosis accuracy" value={report?.diagnosis_accuracy_pct != null ? fmtPct(report.diagnosis_accuracy_pct) : '—'} sub={report ? `${report.coded_rows} coded rows` : 'run a batch'} tone="neutral" />
+        <Kpi label="Actions taken" value={<Num value={v.actions} />} sub="bounded interventions" tone="mute" />
       </div>
 
       <div className="grid">
@@ -251,7 +261,8 @@ export default function App() {
           </div>
           {evalResult && (
             <div className="eval-box">
-              <b>Diagnosis eval</b> — hid failure codes on {evalResult.sample_size} coded rows, LLM recovered {evalResult.correct} → <b>{evalResult.accuracy_pct}%</b>
+              <b>Blank-inference probe</b> — hid codes on {evalResult.sample_size} rows: abstained {evalResult.abstained}, committed {evalResult.confident_correct + evalResult.confident_wrong} ({evalResult.confident_correct} correct). No confident-wrong safety: <b>{evalResult.safe_rate_pct}%</b>.
+              <div className="eval-note">{evalResult.note}</div>
             </div>
           )}
         </section>

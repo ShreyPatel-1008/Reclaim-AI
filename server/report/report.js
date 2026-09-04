@@ -33,12 +33,23 @@ export async function computeAndStoreReport(runId) {
     `SELECT action, COUNT(*)::int AS count FROM payments WHERE run_id=$1 GROUP BY action ORDER BY count DESC`, [runId]
   );
 
+  // Diagnosis accuracy vs ground truth: of rows that HAD a failure_code, the
+  // fraction the Diagnoser classified to match it. Coded rows are deterministic
+  // (→ 100%); the 8 blank rows have no ground truth and are excluded (they are
+  // handled by honest abstention → unknown → escalate).
+  const { rows: [dx] } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE failure_code IS NOT NULL)::int AS coded,
+            COUNT(*) FILTER (WHERE failure_code IS NOT NULL AND root_cause = failure_code)::int AS matched
+       FROM payments WHERE run_id=$1`, [runId]
+  );
+  const diagAcc = dx.coded > 0 ? dx.matched / dx.coded : null;
+
   const { rows: [run] } = await pool.query(
     `UPDATE batch_runs
-        SET amount_recovered=$2, recovery_rate=$3, escalation_rate=$4,
+        SET amount_recovered=$2, recovery_rate=$3, escalation_rate=$4, diagnosis_accuracy=$5,
             status='completed', completed_at=now()
       WHERE run_id=$1 RETURNING *`,
-    [runId, recoveredAmt, recovery_rate, escalation_rate]
+    [runId, recoveredAmt, recovery_rate, escalation_rate, diagAcc]
   );
 
   return {
@@ -55,11 +66,17 @@ export async function computeAndStoreReport(runId) {
     escalated_count: agg.escalated_count,
     failed_count: agg.failed_count,
     no_action_count: agg.no_action_count,
-    diagnosis_accuracy: num(run.diagnosis_accuracy), // null until an eval runs
+    diagnosis_accuracy: round4(diagAcc),
+    diagnosis_accuracy_pct: round1((diagAcc ?? 0) * 100),
+    coded_rows: dx.coded,
+    blank_rows: agg.total - dx.coded,
     by_root_cause: byCause.map((r) => ({ ...r, amount: num(r.amount), recovered: num(r.recovered) })),
     by_action: byAction,
   };
 }
+
+function round4(n) { return n == null ? null : Number(n.toFixed(4)); }
+function round1(n) { return n == null ? null : Number(n.toFixed(1)); }
 
 export async function getReport(runId) {
   const { rows: [run] } = await pool.query(`SELECT * FROM batch_runs WHERE run_id=$1`, [runId]);
