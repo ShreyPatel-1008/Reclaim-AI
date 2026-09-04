@@ -32,8 +32,14 @@ CREATE TABLE IF NOT EXISTS payments (
   status          text NOT NULL DEFAULT 'pending', -- pending | recovered | failed | escalated | no_action
   recovered_amount numeric(12,2) NOT NULL DEFAULT 0,
   simulated       boolean,
+  recovery_message text,   -- Hinglish customer message (generated on demand)
+  message_source   text,   -- ai:<model> | template
   PRIMARY KEY (run_id, payment_id)
 );
+
+-- Backfill columns on databases created before the messenger feature.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS recovery_message text;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS message_source text;
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id              bigserial PRIMARY KEY,

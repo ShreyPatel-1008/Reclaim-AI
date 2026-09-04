@@ -7,6 +7,8 @@ export const getPayments = (runId) => fetch(`/api/batches/${runId}/payments`).th
 export const getReport = (runId) => fetch(`/api/batches/${runId}/report`).then(J);
 export const getAudit = (paymentId, runId) =>
   fetch(`/api/payments/${paymentId}/audit?run_id=${runId}`).then(J);
+export const getMessage = (paymentId, runId) =>
+  fetch(`/api/payments/${paymentId}/message?run_id=${runId}`).then(J);
 
 export const ingestBatch = () =>
   fetch('/api/batches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(J);

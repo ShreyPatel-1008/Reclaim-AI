@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getHealth, getPolicy, getLatest, getPayments, ingestBatch, getAudit, runEval, fmtMoney, fmtPct,
+  getHealth, getPolicy, getLatest, getPayments, ingestBatch, getAudit, getMessage, runEval, fmtMoney, fmtPct,
 } from './api.js';
 import {
   Money, Num, StatusBadge, CauseTag, ACTION_LABEL, ROOT_CAUSE_LABEL, ROOT_CAUSE_CAT,
@@ -113,9 +113,15 @@ export default function App() {
   }
 
   async function openAudit(paymentId) {
-    setDrawer({ payment_id: paymentId, audit: null });
-    try { const a = await getAudit(paymentId, runId); setDrawer({ payment_id: paymentId, audit: a.audit }); }
-    catch { setDrawer({ payment_id: paymentId, audit: [] }); }
+    setDrawer({ payment_id: paymentId, audit: null, message: undefined });
+    try {
+      const a = await getAudit(paymentId, runId);
+      setDrawer((d) => (d?.payment_id === paymentId ? { ...d, audit: a.audit } : d));
+      const m = await getMessage(paymentId, runId); // may take a moment (LLM)
+      setDrawer((d) => (d?.payment_id === paymentId ? { ...d, message: m } : d));
+    } catch {
+      setDrawer((d) => (d?.payment_id === paymentId ? { ...d, audit: d.audit || [], message: { applicable: false } } : d));
+    }
   }
 
   async function doEval() {
@@ -254,6 +260,7 @@ export default function App() {
               <div key={p.payment_id} className={`audit-row ar-${p.status}`} onClick={() => openAudit(p.payment_id)}>
                 <div className="ar-top">
                   <span className="ar-action">{ACTION_LABEL[p.action] || p.action}</span>
+                  {p.action === 'send_payment_link' && <span className="ar-msg" title="AI writes a Hinglish message — click to view">✉</span>}
                   <StatusBadge status={p.status} />
                   {p.diagnosis_source?.startsWith('ai') && <span className="ar-ai">AI</span>}
                   {p.simulated && <span className="ar-sim">sim</span>}
@@ -460,8 +467,39 @@ function AuditDrawer({ data, onClose }) {
               </div>
             );
           })}
+
+          {data.audit && <MessageCard message={data.message} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MessageCard({ message }) {
+  // message: undefined = still loading; {applicable:false} = not a customer msg
+  if (message === undefined) {
+    return (
+      <div className="msg-card">
+        <div className="msg-head">✉ Message to customer <span className="msg-gen"><span className="spinner-sm" /> writing…</span></div>
+      </div>
+    );
+  }
+  if (!message?.applicable) {
+    return (
+      <div className="msg-card msg-na">
+        <div className="msg-head">✉ Message to customer</div>
+        <div className="msg-na-text">No customer message — this action was a {message?.action === 'escalate_to_human' ? 'human hand-off' : message?.action === 'no_action' ? 'no-op' : 'silent retry'}, not an outreach.</div>
+      </div>
+    );
+  }
+  const isAi = String(message.source || '').startsWith('ai');
+  return (
+    <div className="msg-card">
+      <div className="msg-head">
+        ✉ Message to customer · Hinglish
+        <span className={isAi ? 'msg-ai' : 'msg-tpl'}>{isAi ? 'AI-written' : 'template'}</span>
+      </div>
+      <div className="msg-bubble">{message.message}</div>
     </div>
   );
 }

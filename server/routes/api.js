@@ -6,6 +6,7 @@ import { ingestCsv, loadDatasetFile } from '../ingestion/ingest.js';
 import { runBatch } from '../pipeline/runBatch.js';
 import { getReport } from '../report/report.js';
 import { evaluateDiagnosis } from '../report/diagnosisEval.js';
+import { generateMessage } from '../agents/messenger.js';
 import { POLICY, ALLOWED_ACTIONS } from '../config/policy.js';
 import { ROOT_CAUSES } from '../config/failureCodes.js';
 import { llmEnabled, activeModel } from '../llm/openrouter.js';
@@ -76,6 +77,28 @@ router.get('/payments/:paymentId/audit', h(async (req, res) => {
     run_id ? [req.params.paymentId, run_id] : [req.params.paymentId]
   );
   res.json({ payment_id: req.params.paymentId, audit: rows.map((r) => ({ ...r, confidence: num(r.confidence) })) });
+}));
+
+// Personalized Hinglish recovery message for one payment (generated on demand,
+// then cached). Only applies to customer-facing actions (payment links).
+router.get('/payments/:paymentId/message', h(async (req, res) => {
+  const { run_id } = req.query;
+  const { rows: [p] } = await pool.query(
+    `SELECT * FROM payments WHERE payment_id=$1 AND run_id=$2`, [req.params.paymentId, run_id]
+  );
+  if (!p) return res.status(404).json({ error: 'payment not found' });
+  if (p.action !== 'send_payment_link') {
+    return res.json({ applicable: false, action: p.action });
+  }
+  if (p.recovery_message) {
+    return res.json({ applicable: true, message: p.recovery_message, source: p.message_source, cached: true });
+  }
+  const { message, source } = await generateMessage({ ...p, amount: Number(p.amount) });
+  await pool.query(
+    `UPDATE payments SET recovery_message=$1, message_source=$2 WHERE run_id=$3 AND payment_id=$4`,
+    [message, source, run_id, p.payment_id]
+  );
+  res.json({ applicable: true, message, source });
 }));
 
 // Run the pipeline over a batch, streaming decisions via SSE (EventSource GET).
