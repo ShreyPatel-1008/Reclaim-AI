@@ -1,118 +1,108 @@
-# Reclaim — AI Revenue Recovery
+# AI Revenue Recovery Agent
 
-> Track 03: *Find revenue that's slipping away and win it back.*
+> **Razorpay Buildathon — Track 03.** Detect failed payments, diagnose the root
+> cause, decide a bounded recovery action, execute it, and prove measured money
+> recovered across a batch — with compliant escalation, stopping rules, and a
+> full audit trail.
 
-Reclaim is an AI agent that detects revenue at risk from **failed payments**,
-diagnoses the **root cause**, chooses the right **bounded intervention**, and
-executes a compliant recovery workflow across a whole batch — then proves how
-much money it won back, with **stopping rules** and a **full audit trail**.
+A 3-agent pipeline (**Diagnoser → Strategist → Executor**) over a batch of
+failed payments, with a Postgres audit trail and a live React dashboard.
 
-It runs the complete loop the track asks for:
-
-**Detect → Diagnose → Decide → Execute → Recover**
-
----
-
-## Why failed-payment recovery
-
-Every part of "the bar" falls out of this one scenario naturally:
-
-| The bar | How Reclaim delivers it |
-|---|---|
-| **Measured money recovered across a batch** | Runs 200 failed charges and shows `$` recovered climbing live. |
-| **Root cause → recovery action** | Decline codes map to *different* fixes (expired card ≠ insufficient funds ≠ fraud). |
-| **Compliant escalation** | Ordered ladder: smart retry → card-update → dunning → SMS → final notice. |
-| **Stopping rules** | Max attempts, never-retry hard declines, opt-out compliance, anti-harassment caps, quiet hours. |
-| **Audit trail** | Every single decision is logged with its reasoning, outcome, and (when enabled) AI confidence. |
-
-## Architecture
+## The loop
 
 ```
-Failed charge ─▶ Decision Engine (deterministic, compliant)
-                    │  diagnose root cause  → decline-code catalog
-                    │  check stopping rules → guardrails / policy
-                    │  propose safe action set
-                    ▼
-                 AI Advisor (OpenRouter, optional)
-                    │  picks among ENGINE-APPROVED actions only
-                    │  writes human rationale + confidence
-                    ▼
-                 Recovery Orchestrator
-                    │  executes bounded workflow, simulates outcome
-                    │  writes audit entry, updates recovered $
-                    ▼
-                 Live dashboard (SSE stream)
+CSV batch ─▶ Diagnoser ─▶ Strategist ─▶ Executor ─▶ Postgres audit trail ─▶ Report
+            (root cause)  (bounded      (Razorpay     (every decision +      (recovery %,
+             + confidence  action +      test-mode +   reasoning + outcome)   escalation %,
+                           stopping      mock)                                accuracy)
+                           rules)
 ```
 
-**Safety by design:** the deterministic engine decides the *allowed* set of
-actions; the AI only chooses among them and explains the choice. The AI can
-never invent an action the guardrails forbid, and if the API key is absent or
-the call fails, Reclaim runs fully on the rules engine. The live demo never
-depends on the network.
+- **Diagnoser** — coded rows map deterministically (confidence 1.0); the 8 blank
+  rows are inferred by an OpenRouter LLM, with a hard `<0.5 → unknown` floor so
+  it escalates rather than guesses.
+- **Strategist** — a pure, auditable decision table (not an LLM). Enforces the
+  stopping rules: max-3-retries (gates retries only), high-value → human
+  sign-off, risky/unknown → escalate.
+- **Executor** — `send_payment_link` creates a **real Razorpay test-mode payment
+  link**; retries and customer-payment outcomes are resolved in-batch by a
+  deterministic mock (per-root-cause success rates), tagged `simulated: true`.
 
-### Decline-code intelligence (`server/data/declineCodes.js`)
-- **soft** (insufficient funds, do-not-honor, processing error…) → smart retry with backoff
-- **action** (expired card, incorrect CVC, 3DS required…) → customer must act; secure card-update
-- **hard** (lost / stolen / fraud) → **never retry**; route to manual review
+## Stack
 
-## Run it
+- **Backend:** Node + Express, Server-Sent Events for live streaming
+- **DB:** PostgreSQL (`payments`, `audit_log`, `batch_runs`)
+- **AI:** OpenRouter (OpenAI-compatible), free-tier models
+- **Payments:** Razorpay test-mode (Payment Links) + deterministic mock fallback
+- **Frontend:** React + Vite dashboard
+- **Dataset:** `server/data/failed_payments_synthetic.csv` (185 rows, 8 deliberately blank)
 
-Two terminals.
+## Setup
 
-**1. Backend** (port 4000):
+You already have **PostgreSQL 18 on port 5432**. From `server/`:
+
 ```bash
 cd server
 npm install
-npm start
+cp .env.example .env      # then edit .env (see below)
+npm run setup             # creates the DB, applies schema, ingests the CSV
+npm start                 # http://localhost:4000
 ```
 
-**2. Frontend** (port 5180):
+Then the client:
+
 ```bash
 cd client
 npm install
-npm run dev
+npm run dev               # http://localhost:5180
 ```
 
-Open the dashboard, click **Run Recovery Batch**, and watch the agent triage
-200 failed charges in real time.
+### `.env`
 
-### Enable the AI layer (OpenRouter)
+| Var | Required | Purpose |
+|---|---|---|
+| `PGPASSWORD` | **yes** | Password for the `postgres` user |
+| `OPENROUTER_API_KEY` | optional | LLM diagnosis of the 8 blank rows (else → `unknown`) |
+| `OPENROUTER_MODEL` | optional | e.g. `meta-llama/llama-3.3-70b-instruct:free` |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | optional | Real test-mode payment links (else → mock) |
 
-Reclaim runs great in deterministic **rules-only** mode out of the box. To turn
-on AI reasoning, add a key:
+The app runs and degrades gracefully if the optional keys are missing.
 
-```bash
-cd server
-cp .env.example .env
-# then edit .env:
-#   OPENROUTER_API_KEY=sk-or-...
-#   OPENROUTER_MODEL=anthropic/claude-3.5-sonnet   (any OpenRouter model id)
-```
+## API (TDD §8)
 
-Restart the backend. The header badge flips to **AI: <model>**, and audit
-entries gain per-decision AI rationale + confidence.
-
-## The bounded-workflow policy (`server/engine/decisionEngine.js`)
-
-| Rule | Default |
+| Endpoint | Purpose |
 |---|---|
-| Max attempts per charge | 4 |
-| Hard-decline auto-retries | 0 (never) |
-| Max customer messages | 3 (anti-harassment) |
-| Contact cooldown | 24h |
-| Quiet hours | 21:00–08:00 |
-| Min charge to pursue | $2 |
+| `POST /api/batches` | Ingest a CSV (defaults to the bundled dataset) → `run_id` |
+| `GET /api/batches/:runId/run` | Run the pipeline, streaming decisions over SSE |
+| `GET /api/batches/:runId/report` | Batch metrics |
+| `GET /api/batches/:runId/payments` | All payments + current status |
+| `GET /api/payments/:paymentId/audit` | Full audit trail for one payment |
+| `POST /api/batches/:runId/eval` | Held-out diagnosis-accuracy evaluation |
 
-## Tech
+## Metrics (TDD §9)
 
-- **Backend:** Node + Express, Server-Sent Events for live streaming, zero
-  native dependencies (in-memory store — nothing to install or provision).
-- **Frontend:** React + Vite, custom dark dashboard, no chart library.
-- **AI:** OpenRouter (OpenAI-compatible), model-agnostic.
+- **recovery_rate** = `amount_recovered / amount_attempted`, where the
+  denominator is the **whole batch** (including escalated / no-action) — an
+  honest number, not cherry-picked.
+- **escalation_rate** = escalated / total (non-zero by design — proves the
+  guardrail isn't theater).
+- **diagnosis_accuracy** — measured by *hiding* the `failure_code` on a held-out
+  set of coded rows and scoring the LLM's recovery of the true label (the
+  deterministic mapping would trivially score 100%).
 
-## Extending to other lanes
+## Doc-review corrections applied
 
-The decide/execute/audit core is scenario-agnostic. A **B2B overdue
-receivables** lane (promise-to-pay + escalation ladder) plugs into the same
-engine by adding an intent type and its ladder — the guardrails, audit trail,
-and dashboard are reused as-is.
+Built against the PRD / TDD / Requirements docs, with 9 corrections:
+canonical 8-label root-cause set (#1); held-out accuracy measurement (#2);
+in-batch resolution of links/retries (#3); retry cap gates retries only (#4);
+`no_action` threshold rule (#5); backoff wording (#6); high-value sign-off
+guardrail (#7); confidence-floor wording (#8); blank codes valid at ingestion (#9).
+
+## Guardrails ("the bar")
+
+| Requirement | Where |
+|---|---|
+| Stopping rules | `config/policy.js` + `agents/strategist.js` |
+| Compliant escalation | risky / unknown / retry-cap / high-value → `escalate_to_human` |
+| Explainability | every agent writes a mandatory `reasoning` to `audit_log` |
+| Bounded action | Executor only performs actions from a fixed allow-list |

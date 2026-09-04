@@ -1,79 +1,65 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fmtMoney } from '../api.js';
 
-// Smoothly animate a number toward a target.
-// A single persistent RAF loop lerps the displayed value toward the latest
-// target each frame. This stays robust even when the target changes hundreds
-// of times per frame (e.g. an "instant" batch run) — no cancellation storms,
-// and it always converges to the final value.
+// Animate a number toward a target. Driven by setInterval (not rAF) so it keeps
+// advancing even when the tab is backgrounded / not compositing frames.
 export function useCountUp(target) {
   const [val, setVal] = useState(target || 0);
   const targetRef = useRef(target || 0);
   const valRef = useRef(target || 0);
-
   useEffect(() => { targetRef.current = target || 0; }, [target]);
-
-  // Driven by setInterval (not requestAnimationFrame) so the counter keeps
-  // advancing even when the tab is backgrounded / not compositing frames.
   useEffect(() => {
     const id = setInterval(() => {
-      const t = targetRef.current;
-      const cur = valRef.current;
-      const diff = t - cur;
-      if (Math.abs(diff) < 0.5) {
-        if (cur !== t) { valRef.current = t; setVal(t); }
-      } else {
-        valRef.current = cur + diff * 0.18;
-        setVal(valRef.current);
-      }
+      const t = targetRef.current, cur = valRef.current, diff = t - cur;
+      if (Math.abs(diff) < 0.5) { if (cur !== t) { valRef.current = t; setVal(t); } }
+      else { valRef.current = cur + diff * 0.18; setVal(valRef.current); }
     }, 33);
     return () => clearInterval(id);
   }, []);
-
   return val;
 }
 
-export function Money({ value }) {
-  const v = useCountUp(value);
-  return <>{fmtMoney(v)}</>;
-}
+export function Money({ value }) { return <>{fmtMoney(useCountUp(value))}</>; }
+export function Num({ value }) { return <>{Math.round(useCountUp(value)).toLocaleString('en-IN')}</>; }
 
-export function Num({ value }) {
-  const v = useCountUp(value);
-  return <>{Math.round(v).toLocaleString('en-US')}</>;
-}
-
+export const STATUS_META = {
+  pending: ['Pending', 'sb-risk'],
+  recovered: ['Recovered', 'sb-good'],
+  escalated: ['Escalated', 'sb-manual'],
+  failed: ['Failed', 'sb-stop'],
+  no_action: ['No action', 'sb-mute'],
+};
 export function StatusBadge({ status }) {
-  const map = {
-    at_risk: ['At risk', 'sb-risk'],
-    in_progress: ['Working', 'sb-progress'],
-    recovered: ['Recovered', 'sb-good'],
-    stopped: ['Stopped', 'sb-stop'],
-    manual_review: ['Manual review', 'sb-manual'],
-  };
-  const [label, cls] = map[status] || [status, 'sb-risk'];
+  const [label, cls] = STATUS_META[status] || [status, 'sb-risk'];
   return <span className={`badge ${cls}`}>{label}</span>;
 }
 
-export function CategoryTag({ category }) {
-  const map = { soft: ['Soft', 'ct-soft'], action: ['Action', 'ct-action'], hard: ['Hard', 'ct-hard'] };
-  const [label, cls] = map[category] || [category, 'ct-soft'];
+export const CAT_META = {
+  transient: ['Transient', 'ct-soft'],
+  action: ['Action', 'ct-action'],
+  risk: ['Risk', 'ct-hard'],
+  ambiguous: ['Ambiguous', 'ct-amb'],
+};
+export const ROOT_CAUSE_CAT = {
+  insufficient_funds: 'action', card_expired: 'action', invalid_cvv: 'action',
+  bank_timeout: 'transient', network_error: 'transient', issuer_unavailable: 'transient',
+  risky_declined: 'risk', unknown: 'ambiguous',
+};
+export const ROOT_CAUSE_LABEL = {
+  insufficient_funds: 'Insufficient funds', bank_timeout: 'Bank timeout', network_error: 'Network error',
+  issuer_unavailable: 'Issuer unavailable', card_expired: 'Card expired', invalid_cvv: 'Invalid CVV',
+  risky_declined: 'Risky / declined', unknown: 'Unknown',
+};
+export function CauseTag({ cause }) {
+  const cat = ROOT_CAUSE_CAT[cause] || 'ambiguous';
+  const [label, cls] = CAT_META[cat] || [cat, 'ct-amb'];
   return <span className={`ctag ${cls}`}>{label}</span>;
 }
 
 export const ACTION_LABEL = {
-  smart_retry: 'Smart retry',
-  card_update_email: 'Card-update email',
-  dunning_email: 'Dunning email',
-  sms_reminder: 'SMS reminder',
-  final_notice: 'Final notice',
-  manual_review: 'Manual review',
-  stop: 'Stop',
-};
-
-export const OUTCOME_LABEL = {
-  recovered: ['Recovered', 'out-good'],
-  no_response: ['No response', 'out-none'],
-  escalated: ['Escalated', 'out-manual'],
-  stopped: ['Stopped', 'out-stop'],
+  retry_immediate: 'Retry now',
+  retry_delayed_2hr: 'Retry +2h',
+  send_payment_link: 'Payment link',
+  escalate_to_human: 'Escalate',
+  no_action: 'No action',
 };

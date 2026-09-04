@@ -20,6 +20,12 @@ function buildConfig() {
 
 export const pool = new Pool(buildConfig());
 
+// Without this, an idle-client or connection error (e.g. no password set yet)
+// is emitted as an unhandled 'error' event and crashes the process.
+pool.on('error', (err) => {
+  console.error('[pg pool] error:', err.message);
+});
+
 // Postgres numeric columns come back as strings via node-postgres; parse the
 // money/decimal columns to numbers so the API and report math are clean.
 export async function query(text, params) {
