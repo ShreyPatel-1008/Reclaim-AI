@@ -1,5 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  TrendingUp,
+  ShieldCheck,
+  Search,
+  Clock,
+  Zap,
+  Play,
+  RotateCw,
+  FlaskConical,
+  Sun,
+  Moon,
+  AlertTriangle,
+  Mail,
+  X,
+  HelpCircle,
+} from 'lucide-react';
+import {
   getHealth, getPolicy, getLatest, getPayments, ingestBatch, getAudit, getMessage, runEval, fmtMoney, fmtPct,
 } from './api.js';
 import {
@@ -162,8 +178,11 @@ export default function App() {
       <Header health={health} theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
       {dbDown && (
         <div className="banner-warn">
-          ⚠ Postgres not connected. Add <code>PGPASSWORD</code> to <code>server/.env</code> and run
-          <code> npm run setup</code> in <code>/server</code>, then reload.
+          <AlertTriangle size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
+          <span>
+            Postgres not connected. Add <code>PGPASSWORD</code> to <code>server/.env</code> and run
+            <code> npm run setup</code> in <code>/server</code>, then reload.
+          </span>
         </div>
       )}
 
@@ -172,10 +191,18 @@ export default function App() {
 
       <div className="controls">
         <button className="btn-run" onClick={run} disabled={phase === 'running' || !runId}>
-          {phase === 'running' ? (<><span className="spinner" /> Recovering…</>) : '▶  Run Recovery Batch'}
+          {phase === 'running' ? (
+            <><span className="spinner" /> Recovering…</>
+          ) : (
+            <><Play size={14} strokeWidth={2} /> Run Recovery Batch</>
+          )}
         </button>
-        <button className="btn-ghost" onClick={newBatch} disabled={phase === 'running' || busy}>↻ New batch</button>
-        <button className="btn-ghost" onClick={doEval} disabled={phase === 'running' || busy}>◈ Diagnosis eval</button>
+        <button className="btn-ghost" onClick={newBatch} disabled={phase === 'running' || busy}>
+          <RotateCw size={13} strokeWidth={2} /> New batch
+        </button>
+        <button className="btn-ghost" onClick={doEval} disabled={phase === 'running' || busy}>
+          <FlaskConical size={13} strokeWidth={2} /> Diagnosis eval
+        </button>
         <div className="speed">
           <span>Speed</span>
           {['instant', 'fast', 'normal'].map((s) => (
@@ -191,14 +218,22 @@ export default function App() {
 
       <div className="kpi-groups">
         <div className="kpi-group">
-          <div className="kpi-group-title">💰 The outcome</div>
+          <div className="kpi-group-title">
+            <span className="kpi-group-ico"><TrendingUp size={15} strokeWidth={2} /></span>
+            THE OUTCOME
+            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>Results from this batch</span>
+          </div>
           <div className="kpi-row two">
             <Kpi label="Recovered" tip="Money the agent won back, resolved to a final outcome across the batch." value={<Money value={v.recovered} />} sub={<><Num value={v.recoveredCount} /> payments</>} tone="good" big />
             <Kpi label="Recovery rate" tip="Recovered ÷ attempted, using the WHOLE batch as the denominator (including escalated and failed) — not cherry-picked." value={fmtPct(v.recRate)} sub="of whole batch" tone="good" />
           </div>
         </div>
         <div className="kpi-group">
-          <div className="kpi-group-title">🛡 The safeguards</div>
+          <div className="kpi-group-title">
+            <span className="kpi-group-ico safeguard"><ShieldCheck size={15} strokeWidth={2} /></span>
+            THE SAFEGUARDS
+            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>Controls and next steps</span>
+          </div>
           <div className="kpi-row four">
             <Kpi label="At risk" tip="Total value of all failed payments in this batch before any recovery." value={fmtMoney(amountAttempted)} sub={`${payments.length} payments`} tone="risk" />
             <Kpi label="Escalated" tip="Share sent to a human (risky, unknown, high-value, or retry-cap). Non-zero proves the guardrails actually act." value={fmtPct(v.escRate)} sub={<><Num value={v.escalated} /> to human</>} tone="manual" />
@@ -260,7 +295,11 @@ export default function App() {
               <div key={p.payment_id} className={`audit-row ar-${p.status}`} onClick={() => openAudit(p.payment_id)}>
                 <div className="ar-top">
                   <span className="ar-action">{ACTION_LABEL[p.action] || p.action}</span>
-                  {p.action === 'send_payment_link' && <span className="ar-msg" title="AI writes a Hinglish message — click to view">✉</span>}
+                  {p.action === 'send_payment_link' && (
+                    <span className="ar-msg" title="AI writes a Hinglish message — click to view">
+                      <Mail size={13} strokeWidth={2} />
+                    </span>
+                  )}
                   <StatusBadge status={p.status} />
                   {p.diagnosis_source?.startsWith('ai') && <span className="ar-ai">AI</span>}
                   {p.simulated && <span className="ar-sim">sim</span>}
@@ -325,7 +364,7 @@ export default function App() {
       </div>
 
       <footer className="foot">
-        AI Revenue Recovery · Razorpay Buildathon Track 03 — detect → diagnose → decide → execute → recover, with compliant escalation, stopping rules, and a full Postgres audit trail.
+        Reclaim AI · Razorpay Buildathon Track 03 — detect → diagnose → decide → execute → recover, with compliant escalation, stopping rules, and a full Postgres audit trail.
       </footer>
 
       {drawer && <AuditDrawer data={drawer} onClose={() => setDrawer(null)} />}
@@ -344,8 +383,8 @@ function Header({ health, theme, onToggleTheme }) {
       <div className="brand">
         <div className="logo">₹</div>
         <div>
-          <div className="brand-name">AI Revenue Recovery</div>
-          <div className="brand-sub">Failed-payment recovery agent · Track 03</div>
+          <div className="brand-name">Reclaim AI</div>
+          <div className="brand-sub">AI-powered revenue recovery · Track 03</div>
         </div>
       </div>
       <div className="hdr-right">
@@ -353,7 +392,7 @@ function Header({ health, theme, onToggleTheme }) {
           <div key={k} className={`ai-badge ${on ? 'ai-on' : 'ai-off'}`}><span className="dot" />{k}: {txt}</div>
         ))}
         <button className="theme-toggle tip" data-tip={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={onToggleTheme} aria-label="Toggle theme">
-          {theme === 'dark' ? '☀' : '☾'}
+          {theme === 'dark' ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
         </button>
       </div>
     </header>
@@ -386,17 +425,32 @@ function Hero({ attempted, count, recovered, recCount, recRate, hasRun }) {
 
 function FlowStrip() {
   const steps = [
-    ['Step 1', '🔍', 'Diagnoser', 'Reads each failed payment and finds the root cause, with a confidence score. Abstains instead of guessing when unsure.'],
-    ['Step 2', '🧭', 'Strategist', 'Picks one recovery action from a fixed list and applies the stopping rules (retry caps, high-value sign-off, escalation).'],
-    ['Step 3', '⚡', 'Executor', 'Runs the action — a real Razorpay payment link or a retry — records the outcome, and logs every step.'],
+    {
+      num: 'Step 1',
+      icon: <Search size={16} strokeWidth={2} />,
+      name: 'Diagnoser',
+      desc: 'Reads each failed payment and finds the root cause, with a confidence score. Abstains instead of guessing when unsure.'
+    },
+    {
+      num: 'Step 2',
+      icon: <Clock size={16} strokeWidth={2} />,
+      name: 'Strategist',
+      desc: 'Picks one recovery action from a fixed list and applies the stopping rules (retry caps, high-value sign-off, escalation).'
+    },
+    {
+      num: 'Step 3',
+      icon: <Zap size={16} strokeWidth={2} />,
+      name: 'Executor',
+      desc: 'Runs the action — a real Razorpay payment link or a retry — records the outcome, and logs every step.'
+    },
   ];
   return (
     <div className="flow">
-      {steps.map(([num, ico, name, desc]) => (
-        <div className="flow-step" key={name}>
-          <div className="flow-num">{num}</div>
-          <div className="flow-name"><span className="flow-ico">{ico}</span>{name}</div>
-          <div className="flow-desc">{desc}</div>
+      {steps.map((s) => (
+        <div className="flow-step" key={s.name}>
+          <div className="flow-num">{s.num}</div>
+          <div className="flow-name"><span className="flow-ico">{s.icon}</span>{s.name}</div>
+          <div className="flow-desc">{s.desc}</div>
         </div>
       ))}
     </div>
@@ -408,7 +462,11 @@ function Kpi({ label, value, sub, tone, big, tip }) {
     <div className={`kpi kpi-${tone} ${big ? 'kpi-big' : ''}`}>
       <div className="kpi-label">
         {label}
-        {tip && <span className="tip tip-i" data-tip={tip}>?</span>}
+        {tip && (
+          <span className="tip tip-i" data-tip={tip} aria-label="Information">
+            <HelpCircle size={12} strokeWidth={2} />
+          </span>
+        )}
       </div>
       <div className="kpi-value">{value}</div>
       <div className="kpi-sub">{sub}</div>
@@ -446,7 +504,9 @@ function AuditDrawer({ data, onClose }) {
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
         <div className="drawer-head">
           <div><div className="drawer-title">Audit trail</div><div className="mono dim">{data.payment_id}</div></div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
+          <button className="drawer-close" onClick={onClose} aria-label="Close drawer">
+            <X size={16} strokeWidth={2} />
+          </button>
         </div>
         <div className="drawer-body">
           {!data.audit && <div className="empty">Loading…</div>}
@@ -480,14 +540,14 @@ function MessageCard({ message }) {
   if (message === undefined) {
     return (
       <div className="msg-card">
-        <div className="msg-head">✉ Message to customer <span className="msg-gen"><span className="spinner-sm" /> writing…</span></div>
+        <div className="msg-head"><Mail size={14} strokeWidth={2} /> Message to customer <span className="msg-gen"><span className="spinner-sm" /> writing…</span></div>
       </div>
     );
   }
   if (!message?.applicable) {
     return (
       <div className="msg-card msg-na">
-        <div className="msg-head">✉ Message to customer</div>
+        <div className="msg-head"><Mail size={14} strokeWidth={2} /> Message to customer</div>
         <div className="msg-na-text">No customer message — this action was a {message?.action === 'escalate_to_human' ? 'human hand-off' : message?.action === 'no_action' ? 'no-op' : 'silent retry'}, not an outreach.</div>
       </div>
     );
@@ -496,7 +556,7 @@ function MessageCard({ message }) {
   return (
     <div className="msg-card">
       <div className="msg-head">
-        ✉ Message to customer · Hinglish
+        <Mail size={14} strokeWidth={2} /> Message to customer · Hinglish
         <span className={isAi ? 'msg-ai' : 'msg-tpl'}>{isAi ? 'AI-written' : 'template'}</span>
       </div>
       <div className="msg-bubble">{message.message}</div>

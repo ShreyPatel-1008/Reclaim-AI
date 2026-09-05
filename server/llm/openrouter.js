@@ -26,7 +26,7 @@ export async function chatJson(system, user, { timeoutMs = 20000, maxAttempts = 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'HTTP-Referer': 'https://revenue-recovery.local',
-          'X-Title': 'AI Revenue Recovery',
+          'X-Title': 'Reclaim AI',
         },
         body: JSON.stringify({
           model: activeModel(),

@@ -1,4 +1,4 @@
--- Schema for the AI Revenue Recovery agent (TDD §5).
+-- Schema for the Reclaim AI agent (TDD §5).
 -- Safe to run repeatedly.
 
 CREATE TABLE IF NOT EXISTS batch_runs (

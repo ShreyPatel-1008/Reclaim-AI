@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   let db = 'DISCONNECTED';
   try { await pool.query('SELECT 1'); db = 'connected'; } catch { db = 'DISCONNECTED (set PGPASSWORD in .env and run: npm run migrate)'; }
-  console.log(`\n  AI Revenue Recovery — server on http://localhost:${PORT}`);
+  console.log(`\n  Reclaim AI — server on http://localhost:${PORT}`);
   console.log(`  Postgres:  ${db}`);
   console.log(`  Diagnoser: ${llmEnabled() ? `OpenRouter (${activeModel()})` : 'rules-only (set OPENROUTER_API_KEY)'}`);
   console.log(`  Executor:  ${razorpayEnabled() ? 'Razorpay test-mode + mock fallback' : 'mock-only (set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)'}\n`);
