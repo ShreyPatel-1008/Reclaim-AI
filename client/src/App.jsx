@@ -221,7 +221,7 @@ export default function App() {
           <div className="kpi-group-title">
             <span className="kpi-group-ico"><TrendingUp size={15} strokeWidth={2} /></span>
             THE OUTCOME
-            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>Results from this batch</span>
+            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>Results from this batch</span>
           </div>
           <div className="kpi-row two">
             <Kpi label="Recovered" tip="Money the agent won back, resolved to a final outcome across the batch." value={<Money value={v.recovered} />} sub={<><Num value={v.recoveredCount} /> payments</>} tone="good" big />
@@ -232,7 +232,7 @@ export default function App() {
           <div className="kpi-group-title">
             <span className="kpi-group-ico safeguard"><ShieldCheck size={15} strokeWidth={2} /></span>
             THE SAFEGUARDS
-            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>Controls and next steps</span>
+            <span className="dim small" style={{ marginLeft: 'auto', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>Controls and next steps</span>
           </div>
           <div className="kpi-row four">
             <Kpi label="At risk" tip="Total value of all failed payments in this batch before any recovery." value={fmtMoney(amountAttempted)} sub={`${payments.length} payments`} tone="risk" />
