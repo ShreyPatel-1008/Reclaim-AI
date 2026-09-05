@@ -45,7 +45,7 @@ export default function App() {
   const [drawer, setDrawer] = useState(null); // { payment_id, audit }
   const [busy, setBusy] = useState('');
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('rr-theme') || 'dark'; } catch { return 'dark'; }
+    try { return localStorage.getItem('rr-theme') || 'light'; } catch { return 'light'; }
   });
   const esRef = useRef(null);
   const pmap = useRef(new Map());
@@ -498,7 +498,7 @@ function Legend() {
 }
 
 function AuditDrawer({ data, onClose }) {
-  const AGENT_META = { diagnoser: ['Diagnoser', '#38bdf8'], strategist: ['Strategist', '#d4a25a'], executor: ['Executor', '#34d399'] };
+  const AGENT_META = { diagnoser: ['Diagnoser', '#52606D'], strategist: ['Strategist', '#B7791F'], executor: ['Executor', '#008F7A'] };
   return (
     <div className="drawer-overlay" onClick={onClose}>
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
@@ -512,7 +512,7 @@ function AuditDrawer({ data, onClose }) {
           {!data.audit && <div className="empty">Loading…</div>}
           {data.audit?.length === 0 && <div className="empty">No audit entries (run the batch first).</div>}
           {data.audit?.map((a) => {
-            const [name, color] = AGENT_META[a.agent] || [a.agent, '#8b97ad'];
+            const [name, color] = AGENT_META[a.agent] || [a.agent, '#6B6B6B'];
             return (
               <div className="trail" key={a.id}>
                 <div className="trail-dot" style={{ background: color }} />
